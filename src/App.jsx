@@ -23,18 +23,18 @@ const RecurringMeetingScheduler = () => {
 
   // Load meeting data and participants
   useEffect(() => {
-    const loadData = async () => {
+    const loadData = () => {
       if (!meetingId) return;
       
       try {
-        const meetingResult = await window.storage.get(`meeting:${meetingId}`, true);
-        if (meetingResult) {
-          setMeetingData(JSON.parse(meetingResult.value));
+        const meetingData = localStorage.getItem(`meeting:${meetingId}`);
+        if (meetingData) {
+          setMeetingData(JSON.parse(meetingData));
         }
         
-        const participantsResult = await window.storage.get(`participants:${meetingId}`, true);
-        if (participantsResult) {
-          setParticipants(JSON.parse(participantsResult.value));
+        const participantsData = localStorage.getItem(`participants:${meetingId}`);
+        if (participantsData) {
+          setParticipants(JSON.parse(participantsData));
         }
       } catch (error) {
         console.log('Meeting not found or error loading:', error);
@@ -49,7 +49,7 @@ const RecurringMeetingScheduler = () => {
   }, [meetingId]);
 
   // Create new meeting
-  const handleCreateMeeting = async () => {
+  const handleCreateMeeting = () => {
     if (!meetingTitle.trim()) return;
     
     const newMeetingId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -61,8 +61,8 @@ const RecurringMeetingScheduler = () => {
     };
     
     try {
-      await window.storage.set(`meeting:${newMeetingId}`, JSON.stringify(meeting), true);
-      await window.storage.set(`participants:${newMeetingId}`, JSON.stringify([]), true);
+      localStorage.setItem(`meeting:${newMeetingId}`, JSON.stringify(meeting));
+      localStorage.setItem(`participants:${newMeetingId}`, JSON.stringify([]));
       
       setMeetingId(newMeetingId);
       setMeetingData(meeting);
@@ -116,7 +116,7 @@ const RecurringMeetingScheduler = () => {
   };
 
   // Submit participant availability
-  const handleSubmitAvailability = async () => {
+  const handleSubmitAvailability = () => {
     if (!participantName.trim() || !participantEmail.trim()) {
       alert('Please enter your name and email');
       return;
@@ -136,7 +136,7 @@ const RecurringMeetingScheduler = () => {
 
     try {
       const currentParticipants = [...participants, participant];
-      await window.storage.set(`participants:${meetingId}`, JSON.stringify(currentParticipants), true);
+      localStorage.setItem(`participants:${meetingId}`, JSON.stringify(currentParticipants));
       setParticipants(currentParticipants);
       
       setView('results');
