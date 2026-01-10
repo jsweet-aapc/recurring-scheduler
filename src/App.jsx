@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Mail, Users, Link as LinkIcon, Check, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Calendar, Clock, Mail, Users, Link as LinkIcon, Check, X, Globe } from 'lucide-react';
 
 const RecurringMeetingScheduler = () => {
-  const [view, setView] = useState('home'); // home, setup, participate, results
+  const [view, setView] = useState('home'); // home, share, participate, results
   const [meetingId, setMeetingId] = useState(null);
   const [meetingData, setMeetingData] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -12,14 +12,38 @@ const RecurringMeetingScheduler = () => {
   const [participantEmail, setParticipantEmail] = useState('');
   const [selectedSlots, setSelectedSlots] = useState({});
   const [selectedTimes, setSelectedTimes] = useState({});
+  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   
   // Setup form state
   const [meetingTitle, setMeetingTitle] = useState('');
   const [organizerEmail, setOrganizerEmail] = useState('');
   
+  // Drag selection state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState(null);
+  const [dragMode, setDragMode] = useState(null); // 'select' or 'deselect'
+  const [isTimeDragging, setIsTimeDragging] = useState(false);
+  const [timeDragStart, setTimeDragStart] = useState(null);
+  const [timeDragMode, setTimeDragMode] = useState(null);
+  
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weeksOfMonth = ['1st', '2nd', '3rd', '4th', '5th'];
   const timeSlots = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'];
+  
+  const timezones = [
+    'America/New_York',
+    'America/Chicago', 
+    'America/Denver',
+    'America/Los_Angeles',
+    'America/Phoenix',
+    'America/Anchorage',
+    'Pacific/Honolulu',
+    'Europe/London',
+    'Europe/Paris',
+    'Asia/Tokyo',
+    'Asia/Shanghai',
+    'Australia/Sydney'
+  ];
 
   // Load meeting data and participants
   useEffect(() => {
@@ -66,7 +90,7 @@ const RecurringMeetingScheduler = () => {
       
       setMeetingId(newMeetingId);
       setMeetingData(meeting);
-      setView('results');
+      setView('share');
     } catch (error) {
       alert('Failed to create meeting. Please try again.');
     }
@@ -96,6 +120,39 @@ const RecurringMeetingScheduler = () => {
       return newSlots;
     });
   };
+  
+  // Drag selection for grid
+  const handleMouseDown = (day, week) => {
+    const key = `${week}-${day}`;
+    setIsDragging(true);
+    setDragStart(key);
+    setDragMode(selectedSlots[key] ? 'deselect' : 'select');
+    toggleSlot(day, week);
+  };
+  
+  const handleMouseEnter = (day, week) => {
+    if (!isDragging) return;
+    const key = `${week}-${day}`;
+    
+    if (dragMode === 'select' && !selectedSlots[key]) {
+      toggleSlot(day, week);
+    } else if (dragMode === 'deselect' && selectedSlots[key]) {
+      toggleSlot(day, week);
+    }
+  };
+  
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDragStart(null);
+    setDragMode(null);
+  };
+  
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => document.removeEventListener('mouseup', handleMouseUp);
+    }
+  }, [isDragging]);
 
   // Toggle time selection for a slot
   const toggleTime = (slotKey, time) => {
@@ -114,6 +171,40 @@ const RecurringMeetingScheduler = () => {
       return newTimes;
     });
   };
+  
+  // Drag selection for times
+  const handleTimeMouseDown = (slotKey, time) => {
+    setIsTimeDragging(true);
+    setTimeDragStart(`${slotKey}-${time}`);
+    const isSelected = selectedTimes[slotKey]?.includes(time);
+    setTimeDragMode(isSelected ? 'deselect' : 'select');
+    toggleTime(slotKey, time);
+  };
+  
+  const handleTimeMouseEnter = (slotKey, time) => {
+    if (!isTimeDragging) return;
+    
+    const isSelected = selectedTimes[slotKey]?.includes(time);
+    
+    if (timeDragMode === 'select' && !isSelected) {
+      toggleTime(slotKey, time);
+    } else if (timeDragMode === 'deselect' && isSelected) {
+      toggleTime(slotKey, time);
+    }
+  };
+  
+  const handleTimeMouseUp = () => {
+    setIsTimeDragging(false);
+    setTimeDragStart(null);
+    setTimeDragMode(null);
+  };
+  
+  useEffect(() => {
+    if (isTimeDragging) {
+      document.addEventListener('mouseup', handleTimeMouseUp);
+      return () => document.removeEventListener('mouseup', handleTimeMouseUp);
+    }
+  }, [isTimeDragging]);
 
   // Submit participant availability
   const handleSubmitAvailability = () => {
@@ -192,90 +283,159 @@ const RecurringMeetingScheduler = () => {
   // Home View
   if (view === 'home') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
-        <div className="max-w-4xl mx-auto px-6 py-20">
-          <div className="text-center mb-16 animate-fade-in">
-            <h1 className="text-6xl font-bold mb-4 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+      <div className="min-h-screen bg-white">
+        <div className="max-w-2xl mx-auto px-6 py-16">
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-bold mb-3 text-gray-900">
               Recurring
             </h1>
-            <p className="text-xl text-slate-600" style={{ fontFamily: 'Lora, serif' }}>
-              Schedule monthly meetings with ease
+            <p className="text-lg text-gray-600">
+              Find the perfect time for your monthly meetings
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-12 mb-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-slate-700 mb-3" style={{ fontFamily: 'Lora, serif' }}>
-                Meeting Title
-              </label>
-              <input
-                type="text"
-                value={meetingTitle}
-                onChange={(e) => setMeetingTitle(e.target.value)}
-                placeholder="Monthly Team Sync"
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none transition-colors"
-                style={{ fontFamily: 'Lora, serif' }}
-              />
-            </div>
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Meeting Title *
+                </label>
+                <input
+                  type="text"
+                  value={meetingTitle}
+                  onChange={(e) => setMeetingTitle(e.target.value)}
+                  placeholder="e.g., Monthly Team Sync"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900"
+                />
+              </div>
 
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-slate-700 mb-3" style={{ fontFamily: 'Lora, serif' }}>
-                Your Email (Optional)
-              </label>
-              <input
-                type="email"
-                value={organizerEmail}
-                onChange={(e) => setOrganizerEmail(e.target.value)}
-                placeholder="organizer@example.com"
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none transition-colors"
-                style={{ fontFamily: 'Lora, serif' }}
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Email (optional)
+                </label>
+                <input
+                  type="email"
+                  value={organizerEmail}
+                  onChange={(e) => setOrganizerEmail(e.target.value)}
+                  placeholder="organizer@example.com"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900"
+                />
+              </div>
 
-            <button
-              onClick={handleCreateMeeting}
-              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 text-white px-8 py-4 rounded-lg font-medium hover:from-amber-700 hover:to-orange-700 transition-all transform hover:scale-105 shadow-lg"
-              style={{ fontFamily: 'Lora, serif' }}
-            >
-              Create Meeting
-            </button>
+              <button
+                onClick={handleCreateMeeting}
+                disabled={!meetingTitle.trim()}
+                className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
+              >
+                Create Meeting
+              </button>
+            </div>
           </div>
 
-          <div className="text-center text-slate-500 animate-fade-in" style={{ animationDelay: '0.4s', fontFamily: 'Lora, serif' }}>
-            <p className="text-sm">
-              Find the perfect recurring time slot for your monthly meetings
-            </p>
+          <div className="mt-8 text-center text-sm text-gray-500">
+            <p>Share a link with participants to collect their recurring availability</p>
           </div>
         </div>
 
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora:wght@400;500;600&display=swap');
-          
-          @keyframes fade-in {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          
-          @keyframes slide-up {
-            from { 
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to { 
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-          
-          .animate-fade-in {
-            animation: fade-in 0.8s ease-out forwards;
-            opacity: 0;
-          }
-          
-          .animate-slide-up {
-            animation: slide-up 0.8s ease-out forwards;
-            opacity: 0;
-          }
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          * { font-family: 'Inter', sans-serif; }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Share View - Shows shareable link after creating meeting
+  if (view === 'share') {
+    if (!meetingData) {
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-lg text-gray-600">Loading meeting...</div>
+          </div>
+        </div>
+      );
+    }
+
+    const shareLink = `${window.location.origin}${window.location.pathname}?meeting=${meetingId}`;
+
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="max-w-2xl w-full">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-4xl font-bold mb-3 text-gray-900">
+              Meeting Created!
+            </h1>
+            <p className="text-lg text-gray-600">
+              Share this link with participants to collect their availability
+            </p>
+          </div>
+
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">
+              {meetingData.title}
+            </h2>
+
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                Shareable Link
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={shareLink}
+                  readOnly
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-mono text-sm"
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareLink);
+                    alert('Link copied to clipboard!');
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all whitespace-nowrap"
+                >
+                  Copy Link
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-900">
+                <strong>Next steps:</strong> Share this link via email, Slack, or any messaging platform. 
+                Each participant will use it to submit their recurring monthly availability.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setView('results')}
+                className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all"
+              >
+                View Results
+              </button>
+              <button
+                onClick={() => {
+                  setMeetingId(null);
+                  setMeetingData(null);
+                  setMeetingTitle('');
+                  setOrganizerEmail('');
+                  setView('home');
+                }}
+                className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+              >
+                Create Another Meeting
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          * { font-family: 'Inter', sans-serif; }
         `}</style>
       </div>
     );
@@ -285,71 +445,85 @@ const RecurringMeetingScheduler = () => {
   if (view === 'participate') {
     if (!meetingData) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center">
+        <div className="min-h-screen bg-white flex items-center justify-center">
           <div className="text-center">
-            <div className="text-xl text-slate-600" style={{ fontFamily: 'Lora, serif' }}>Loading meeting...</div>
+            <div className="text-lg text-gray-600">Loading meeting...</div>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 py-12 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-10">
-            <h1 className="text-5xl font-bold mb-3 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2 text-gray-900">
               {meetingData.title}
             </h1>
-            <p className="text-lg text-slate-600" style={{ fontFamily: 'Lora, serif' }}>
+            <p className="text-gray-600">
               Select your recurring monthly availability
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-10 mb-8">
-            <div className="grid md:grid-cols-2 gap-6 mb-10">
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3" style={{ fontFamily: 'Lora, serif' }}>
-                  Your Name
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Name *
                 </label>
                 <input
                   type="text"
                   value={participantName}
                   onChange={(e) => setParticipantName(e.target.value)}
                   placeholder="Jane Smith"
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none transition-colors"
-                  style={{ fontFamily: 'Lora, serif' }}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3" style={{ fontFamily: 'Lora, serif' }}>
-                  Your Email
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Email *
                 </label>
                 <input
                   type="email"
                   value={participantEmail}
                   onChange={(e) => setParticipantEmail(e.target.value)}
                   placeholder="jane@example.com"
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none transition-colors"
-                  style={{ fontFamily: 'Lora, serif' }}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
                 />
               </div>
             </div>
 
             <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-4 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <Globe className="w-4 h-4 inline mr-1" />
+                Your Timezone
+              </label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-white"
+              >
+                {timezones.map(tz => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-3 text-gray-900">
                 Step 1: Select Day & Week Combinations
               </h2>
-              <p className="text-sm text-slate-600 mb-6" style={{ fontFamily: 'Lora, serif' }}>
-                Click the boxes for the day-week combinations you're available (e.g., "1st Monday")
+              <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                💡 Click and drag to select multiple slots at once
               </p>
               
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
-                      <th className="border-2 border-slate-200 p-3 bg-slate-50" style={{ fontFamily: 'Lora, serif' }}></th>
+                      <th className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold"></th>
                       {daysOfWeek.map(day => (
-                        <th key={day} className="border-2 border-slate-200 p-3 bg-slate-50 text-sm font-medium text-slate-700" style={{ fontFamily: 'Lora, serif' }}>
+                        <th key={day} className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
                           {day}
                         </th>
                       ))}
@@ -358,23 +532,24 @@ const RecurringMeetingScheduler = () => {
                   <tbody>
                     {weeksOfMonth.map(week => (
                       <tr key={week}>
-                        <td className="border-2 border-slate-200 p-3 bg-slate-50 font-medium text-slate-700" style={{ fontFamily: 'Lora, serif' }}>
+                        <td className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
                           {week}
                         </td>
                         {daysOfWeek.map(day => {
                           const key = `${week}-${day}`;
                           const isSelected = selectedSlots[key];
                           return (
-                            <td key={key} className="border-2 border-slate-200 p-0">
+                            <td key={key} className="border-2 border-gray-300 p-0">
                               <button
-                                onClick={() => toggleSlot(day, week)}
-                                className={`w-full h-16 transition-all hover:scale-95 ${
+                                onMouseDown={() => handleMouseDown(day, week)}
+                                onMouseEnter={() => handleMouseEnter(day, week)}
+                                className={`w-full h-12 transition-all cursor-pointer select-none ${
                                   isSelected 
-                                    ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' 
-                                    : 'bg-white hover:bg-amber-50'
+                                    ? 'bg-green-500 hover:bg-green-600' 
+                                    : 'bg-white hover:bg-gray-100'
                                 }`}
                               >
-                                {isSelected && <Check className="w-5 h-5 mx-auto" />}
+                                {isSelected && <Check className="w-5 h-5 mx-auto text-white" />}
                               </button>
                             </td>
                           );
@@ -388,18 +563,18 @@ const RecurringMeetingScheduler = () => {
 
             {Object.keys(selectedSlots).length > 0 && (
               <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+                <h2 className="text-2xl font-bold mb-3 text-gray-900">
                   Step 2: Select Available Times
                 </h2>
-                <p className="text-sm text-slate-600 mb-6" style={{ fontFamily: 'Lora, serif' }}>
-                  For each selected day, choose the times you're available
+                <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  💡 Click and drag to select multiple times at once • Times shown in {timezone}
                 </p>
 
                 {Object.keys(selectedSlots).map(slotKey => {
                   const [week, day] = slotKey.split('-');
                   return (
-                    <div key={slotKey} className="mb-6 p-6 bg-slate-50 rounded-lg">
-                      <h3 className="text-lg font-semibold mb-4 text-slate-800" style={{ fontFamily: 'Lora, serif' }}>
+                    <div key={slotKey} className="mb-6 p-5 bg-gray-50 rounded-lg border-2 border-gray-200">
+                      <h3 className="text-lg font-semibold mb-3 text-gray-800">
                         {week} {day} of each month
                       </h3>
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
@@ -408,13 +583,13 @@ const RecurringMeetingScheduler = () => {
                           return (
                             <button
                               key={time}
-                              onClick={() => toggleTime(slotKey, time)}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                              onMouseDown={() => handleTimeMouseDown(slotKey, time)}
+                              onMouseEnter={() => handleTimeMouseEnter(slotKey, time)}
+                              className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all select-none ${
                                 isSelected
-                                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md'
-                                  : 'bg-white border-2 border-slate-200 text-slate-700 hover:border-amber-500'
+                                  ? 'bg-green-500 text-white hover:bg-green-600'
+                                  : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-green-500'
                               }`}
-                              style={{ fontFamily: 'Lora, serif' }}
                             >
                               {time}
                             </button>
@@ -430,15 +605,13 @@ const RecurringMeetingScheduler = () => {
             <div className="flex gap-4">
               <button
                 onClick={() => setView('results')}
-                className="flex-1 border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg font-medium hover:bg-slate-50 transition-colors"
-                style={{ fontFamily: 'Lora, serif' }}
+                className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
               >
                 View Results
               </button>
               <button
                 onClick={handleSubmitAvailability}
-                className="flex-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white px-8 py-4 rounded-lg font-medium hover:from-amber-700 hover:to-orange-700 transition-all transform hover:scale-105 shadow-lg"
-                style={{ fontFamily: 'Lora, serif' }}
+                className="flex-1 bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 transition-all"
               >
                 Submit Availability
               </button>
@@ -447,7 +620,9 @@ const RecurringMeetingScheduler = () => {
         </div>
 
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora:wght@400;500;600&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          * { font-family: 'Inter', sans-serif; }
+          button { user-select: none; -webkit-user-select: none; }
         `}</style>
       </div>
     );
@@ -457,9 +632,9 @@ const RecurringMeetingScheduler = () => {
   if (view === 'results') {
     if (!meetingData) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center">
+        <div className="min-h-screen bg-white flex items-center justify-center">
           <div className="text-center">
-            <div className="text-xl text-slate-600" style={{ fontFamily: 'Lora, serif' }}>Loading meeting...</div>
+            <div className="text-lg text-gray-600">Loading meeting...</div>
           </div>
         </div>
       );
@@ -469,48 +644,58 @@ const RecurringMeetingScheduler = () => {
     const maxCount = Math.max(...Object.values(summary).map(s => s.count), 1);
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 py-12 px-6">
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10">
-            <h1 className="text-5xl font-bold mb-3 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2 text-gray-900">
               {meetingData.title}
             </h1>
-            <p className="text-lg text-slate-600 mb-6" style={{ fontFamily: 'Lora, serif' }}>
+            <p className="text-gray-600 mb-6">
               {participants.length} {participants.length === 1 ? 'person has' : 'people have'} responded
             </p>
 
-            <div className="flex justify-center gap-4 mb-8">
+            <div className="flex justify-center gap-4 flex-wrap">
               <button
                 onClick={copyLink}
-                className="inline-flex items-center gap-2 bg-white border-2 border-slate-300 text-slate-700 px-6 py-3 rounded-lg font-medium hover:bg-slate-50 transition-all shadow-md"
-                style={{ fontFamily: 'Lora, serif' }}
+                className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-all"
               >
-                <LinkIcon className="w-5 h-5" />
+                <LinkIcon className="w-4 h-4" />
                 Copy Invite Link
               </button>
               <button
                 onClick={() => setView('participate')}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:from-amber-700 hover:to-orange-700 transition-all shadow-lg"
-                style={{ fontFamily: 'Lora, serif' }}
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-all"
               >
-                <Users className="w-5 h-5" />
+                <Users className="w-4 h-4" />
                 Add Your Availability
+              </button>
+              <button
+                onClick={() => {
+                  setMeetingId(null);
+                  setMeetingData(null);
+                  setParticipants([]);
+                  setView('home');
+                }}
+                className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+              >
+                <Calendar className="w-4 h-4" />
+                Create New Meeting
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-10 mb-8">
-            <h2 className="text-2xl font-bold mb-6 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
+            <h2 className="text-2xl font-bold mb-5 text-gray-900">
               Availability Overview
             </h2>
 
-            <div className="overflow-x-auto mb-8">
+            <div className="overflow-x-auto mb-6">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="border-2 border-slate-200 p-3 bg-slate-50" style={{ fontFamily: 'Lora, serif' }}></th>
+                    <th className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold"></th>
                     {daysOfWeek.map(day => (
-                      <th key={day} className="border-2 border-slate-200 p-3 bg-slate-50 text-sm font-medium text-slate-700" style={{ fontFamily: 'Lora, serif' }}>
+                      <th key={day} className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
                         {day}
                       </th>
                     ))}
@@ -519,7 +704,7 @@ const RecurringMeetingScheduler = () => {
                 <tbody>
                   {weeksOfMonth.map(week => (
                     <tr key={week}>
-                      <td className="border-2 border-slate-200 p-3 bg-slate-50 font-medium text-slate-700" style={{ fontFamily: 'Lora, serif' }}>
+                      <td className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
                         {week}
                       </td>
                       {daysOfWeek.map(day => {
@@ -528,18 +713,18 @@ const RecurringMeetingScheduler = () => {
                         const opacity = count / maxCount;
                         
                         return (
-                          <td key={key} className="border-2 border-slate-200 p-0">
+                          <td key={key} className="border-2 border-gray-300 p-0">
                             <div
-                              className="h-16 flex items-center justify-center transition-all hover:scale-105 cursor-pointer"
+                              className="h-12 flex items-center justify-center transition-all cursor-pointer"
                               style={{
                                 backgroundColor: count > 0 
-                                  ? `rgba(217, 119, 6, ${0.2 + opacity * 0.8})` 
+                                  ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})` 
                                   : 'white'
                               }}
                               title={count > 0 ? `${count} available` : 'No availability'}
                             >
                               {count > 0 && (
-                                <div className="text-white font-bold text-lg" style={{ fontFamily: 'Lora, serif' }}>
+                                <div className="text-white font-bold text-base">
                                   {count}
                                 </div>
                               )}
@@ -553,25 +738,25 @@ const RecurringMeetingScheduler = () => {
               </table>
             </div>
 
-            <div className="flex items-center gap-4 mb-8 text-sm" style={{ fontFamily: 'Lora, serif' }}>
-              <span className="text-slate-600">Availability:</span>
+            <div className="flex items-center gap-6 text-sm">
+              <span className="text-gray-600 font-semibold">Availability:</span>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded" style={{ backgroundColor: 'rgba(217, 119, 6, 0.3)' }}></div>
-                <span className="text-slate-600">Low</span>
+                <div className="w-6 h-6 rounded border-2 border-gray-300" style={{ backgroundColor: 'rgba(34, 197, 94, 0.3)' }}></div>
+                <span className="text-gray-600">Low</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded" style={{ backgroundColor: 'rgba(217, 119, 6, 0.65)' }}></div>
-                <span className="text-slate-600">Medium</span>
+                <div className="w-6 h-6 rounded border-2 border-gray-300" style={{ backgroundColor: 'rgba(34, 197, 94, 0.65)' }}></div>
+                <span className="text-gray-600">Medium</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded" style={{ backgroundColor: 'rgba(217, 119, 6, 1)' }}></div>
-                <span className="text-slate-600">High</span>
+                <div className="w-6 h-6 rounded border-2 border-gray-300" style={{ backgroundColor: 'rgba(34, 197, 94, 1)' }}></div>
+                <span className="text-gray-600">High</span>
               </div>
             </div>
 
             {Object.keys(summary).length > 0 && (
-              <div>
-                <h3 className="text-xl font-bold mb-4 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
+              <div className="mt-8">
+                <h3 className="text-xl font-bold mb-4 text-gray-900">
                   Detailed Time Breakdown
                 </h3>
                 
@@ -580,29 +765,29 @@ const RecurringMeetingScheduler = () => {
                   .map(([slotKey, data]) => {
                     const [week, day] = slotKey.split('-');
                     return (
-                      <div key={slotKey} className="mb-6 p-6 bg-slate-50 rounded-lg">
+                      <div key={slotKey} className="mb-5 p-5 bg-gray-50 rounded-lg border-2 border-gray-200">
                         <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-lg font-semibold text-slate-800" style={{ fontFamily: 'Lora, serif' }}>
+                          <h4 className="text-lg font-semibold text-gray-800">
                             {week} {day}
                           </h4>
-                          <span className="px-4 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-full text-sm font-medium" style={{ fontFamily: 'Lora, serif' }}>
+                          <span className="px-4 py-1.5 bg-green-500 text-white rounded-full text-sm font-semibold">
                             {data.count} {data.count === 1 ? 'person' : 'people'}
                           </span>
                         </div>
                         
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {Object.entries(data.times)
                             .sort(([, a], [, b]) => b.length - a.length)
                             .map(([time, names]) => (
                               <div key={time} className="flex items-center gap-4">
-                                <div className="w-24 text-sm font-medium text-slate-700" style={{ fontFamily: 'Lora, serif' }}>
+                                <div className="w-20 text-sm font-semibold text-gray-700">
                                   {time}
                                 </div>
                                 <div className="flex-1 flex items-center gap-2">
-                                  <div className="flex-1 bg-white rounded-lg px-3 py-2 text-sm text-slate-600" style={{ fontFamily: 'Lora, serif' }}>
+                                  <div className="flex-1 bg-white rounded-lg px-3 py-2 text-sm text-gray-600 border border-gray-200">
                                     {names.join(', ')}
                                   </div>
-                                  <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium" style={{ fontFamily: 'Lora, serif' }}>
+                                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
                                     {names.length}
                                   </span>
                                 </div>
@@ -617,8 +802,8 @@ const RecurringMeetingScheduler = () => {
 
             {participants.length === 0 && (
               <div className="text-center py-12">
-                <Users className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                <p className="text-lg text-slate-500" style={{ fontFamily: 'Lora, serif' }}>
+                <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-lg text-gray-500">
                   No responses yet. Share the invite link to get started!
                 </p>
               </div>
@@ -626,20 +811,20 @@ const RecurringMeetingScheduler = () => {
           </div>
 
           {participants.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-xl p-10">
-              <h2 className="text-2xl font-bold mb-6 text-slate-900" style={{ fontFamily: 'Playfair Display, serif' }}>
-                Participants
+            <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm">
+              <h2 className="text-2xl font-bold mb-5 text-gray-900">
+                Participants ({participants.length})
               </h2>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {participants.map((participant, idx) => (
-                  <div key={idx} className="p-4 bg-slate-50 rounded-lg">
-                    <div className="font-semibold text-slate-800" style={{ fontFamily: 'Lora, serif' }}>
+                  <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="font-semibold text-gray-800">
                       {participant.name}
                     </div>
-                    <div className="text-sm text-slate-600" style={{ fontFamily: 'Lora, serif' }}>
+                    <div className="text-sm text-gray-600">
                       {participant.email}
                     </div>
-                    <div className="text-xs text-slate-500 mt-2" style={{ fontFamily: 'Lora, serif' }}>
+                    <div className="text-xs text-gray-500 mt-2">
                       {Object.keys(participant.availability).length} slot{Object.keys(participant.availability).length !== 1 ? 's' : ''} available
                     </div>
                   </div>
@@ -650,7 +835,8 @@ const RecurringMeetingScheduler = () => {
         </div>
 
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora:wght@400;500;600&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          * { font-family: 'Inter', sans-serif; }
         `}</style>
       </div>
     );
