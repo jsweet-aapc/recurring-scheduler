@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, Mail, Users, Link as LinkIcon, Check, X, Globe, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, Mail, Users, Link as LinkIcon, Check, X, Globe } from 'lucide-react';
 
 const RecurringMeetingScheduler = () => {
-  const [view, setView] = useState('home'); // home, meeting
+  const [view, setView] = useState('home'); // home, share, participate, results
   const [meetingId, setMeetingId] = useState(null);
   const [meetingData, setMeetingData] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [showLinkCopied, setShowLinkCopied] = useState(false);
   
   // Participant form state
   const [participantName, setParticipantName] = useState('');
@@ -14,16 +13,17 @@ const RecurringMeetingScheduler = () => {
   const [selectedSlots, setSelectedSlots] = useState({});
   const [selectedTimes, setSelectedTimes] = useState({});
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [existingParticipantIndex, setExistingParticipantIndex] = useState(null);
-  const [selectedCell, setSelectedCell] = useState(null); // For showing details on click
   
   // Setup form state
   const [meetingTitle, setMeetingTitle] = useState('');
+  const [organizerEmail, setOrganizerEmail] = useState('');
   
   // Drag selection state
   const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState(null);
+  const [dragStart, setDragStart] = useState(null);
+  const [dragMode, setDragMode] = useState(null); // 'select' or 'deselect'
   const [isTimeDragging, setIsTimeDragging] = useState(false);
+  const [timeDragStart, setTimeDragStart] = useState(null);
   const [timeDragMode, setTimeDragMode] = useState(null);
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -51,14 +51,14 @@ const RecurringMeetingScheduler = () => {
       if (!meetingId) return;
       
       try {
-        const meetingDataStr = localStorage.getItem(`meeting:${meetingId}`);
-        if (meetingDataStr) {
-          setMeetingData(JSON.parse(meetingDataStr));
+        const meetingData = localStorage.getItem(`meeting:${meetingId}`);
+        if (meetingData) {
+          setMeetingData(JSON.parse(meetingData));
         }
         
-        const participantsDataStr = localStorage.getItem(`participants:${meetingId}`);
-        if (participantsDataStr) {
-          setParticipants(JSON.parse(participantsDataStr));
+        const participantsData = localStorage.getItem(`participants:${meetingId}`);
+        if (participantsData) {
+          setParticipants(JSON.parse(participantsData));
         }
       } catch (error) {
         console.log('Meeting not found or error loading:', error);
@@ -80,6 +80,7 @@ const RecurringMeetingScheduler = () => {
     const meeting = {
       id: newMeetingId,
       title: meetingTitle,
+      organizerEmail,
       createdAt: new Date().toISOString()
     };
     
@@ -89,6 +90,7 @@ const RecurringMeetingScheduler = () => {
       
       setMeetingId(newMeetingId);
       setMeetingData(meeting);
+      setView('share');
     } catch (error) {
       alert('Failed to create meeting. Please try again.');
     }
@@ -97,7 +99,7 @@ const RecurringMeetingScheduler = () => {
   // Join existing meeting
   const handleJoinMeeting = (id) => {
     setMeetingId(id);
-    setView('meeting');
+    setView('participate');
   };
 
   // Toggle day-week slot selection
@@ -123,6 +125,7 @@ const RecurringMeetingScheduler = () => {
   const handleMouseDown = (day, week) => {
     const key = `${week}-${day}`;
     setIsDragging(true);
+    setDragStart(key);
     setDragMode(selectedSlots[key] ? 'deselect' : 'select');
     toggleSlot(day, week);
   };
@@ -140,6 +143,7 @@ const RecurringMeetingScheduler = () => {
   
   const handleMouseUp = () => {
     setIsDragging(false);
+    setDragStart(null);
     setDragMode(null);
   };
   
@@ -171,6 +175,7 @@ const RecurringMeetingScheduler = () => {
   // Drag selection for times
   const handleTimeMouseDown = (slotKey, time) => {
     setIsTimeDragging(true);
+    setTimeDragStart(`${slotKey}-${time}`);
     const isSelected = selectedTimes[slotKey]?.includes(time);
     setTimeDragMode(isSelected ? 'deselect' : 'select');
     toggleTime(slotKey, time);
@@ -190,6 +195,7 @@ const RecurringMeetingScheduler = () => {
   
   const handleTimeMouseUp = () => {
     setIsTimeDragging(false);
+    setTimeDragStart(null);
     setTimeDragMode(null);
   };
   
@@ -202,8 +208,8 @@ const RecurringMeetingScheduler = () => {
 
   // Submit participant availability
   const handleSubmitAvailability = () => {
-    if (!participantName.trim()) {
-      alert('Please enter your name');
+    if (!participantName.trim() || !participantEmail.trim()) {
+      alert('Please enter your name and email');
       return;
     }
     
@@ -214,58 +220,23 @@ const RecurringMeetingScheduler = () => {
 
     const participant = {
       name: participantName,
-      email: participantEmail.trim() || 'Not provided',
+      email: participantEmail,
       availability: selectedTimes,
-      timezone: timezone,
       submittedAt: new Date().toISOString()
     };
 
     try {
-      let currentParticipants = [...participants];
-      
-      // If email provided, check for existing participant
-      if (participantEmail.trim()) {
-        const existingIndex = currentParticipants.findIndex(p => p.email === participantEmail);
-        if (existingIndex !== -1) {
-          currentParticipants[existingIndex] = participant;
-        } else {
-          currentParticipants.push(participant);
-        }
-      } else {
-        // No email, always add as new
-        currentParticipants.push(participant);
-      }
-      
+      const currentParticipants = [...participants, participant];
       localStorage.setItem(`participants:${meetingId}`, JSON.stringify(currentParticipants));
       setParticipants(currentParticipants);
       
-      alert('Availability saved! You can update it anytime by using the same email.');
+      setView('results');
+      setParticipantName('');
+      setParticipantEmail('');
+      setSelectedSlots({});
+      setSelectedTimes({});
     } catch (error) {
       alert('Failed to submit availability. Please try again.');
-    }
-  };
-  
-  // Load existing participant data
-  const loadExistingAvailability = () => {
-    if (!participantEmail.trim()) return;
-    
-    const existingIndex = participants.findIndex(p => p.email === participantEmail);
-    if (existingIndex !== -1) {
-      const existing = participants[existingIndex];
-      setParticipantName(existing.name);
-      setTimezone(existing.timezone || timezone);
-      setExistingParticipantIndex(existingIndex);
-      
-      // Rebuild selectedSlots and selectedTimes from availability
-      const newSelectedSlots = {};
-      const newSelectedTimes = existing.availability || {};
-      
-      Object.keys(newSelectedTimes).forEach(slotKey => {
-        newSelectedSlots[slotKey] = true;
-      });
-      
-      setSelectedSlots(newSelectedSlots);
-      setSelectedTimes(newSelectedTimes);
     }
   };
 
@@ -296,12 +267,7 @@ const RecurringMeetingScheduler = () => {
   const copyLink = () => {
     const link = `${window.location.origin}${window.location.pathname}?meeting=${meetingId}`;
     navigator.clipboard.writeText(link);
-    setShowLinkCopied(true);
-    setTimeout(() => setShowLinkCopied(false), 2000);
-  };
-  
-  const goToMeeting = () => {
-    window.location.href = `${window.location.origin}${window.location.pathname}?meeting=${meetingId}`;
+    alert('Link copied to clipboard!');
   };
 
   // Parse URL for meeting ID
@@ -310,30 +276,28 @@ const RecurringMeetingScheduler = () => {
     const id = params.get('meeting');
     if (id) {
       setMeetingId(id);
-      setView('meeting');
+      setView('participate');
     }
   }, []);
 
   // Home View
   if (view === 'home') {
-    const shareLink = meetingId ? `${window.location.origin}${window.location.pathname}?meeting=${meetingId}` : '';
-    
     return (
-      <div className="min-h-screen bg-black text-white">
-        <div className="max-w-3xl mx-auto px-6 py-16">
+      <div className="min-h-screen bg-white">
+        <div className="max-w-2xl mx-auto px-6 py-16">
           <div className="text-center mb-12">
-            <h1 className="text-5xl font-bold mb-3 text-white">
-              Recurring Meeting Planner
+            <h1 className="text-5xl font-bold mb-3 text-gray-900">
+              Recurring
             </h1>
-            <p className="text-lg text-gray-400">
+            <p className="text-lg text-gray-600">
               Find the perfect time for your monthly meetings
             </p>
           </div>
 
-          <div className="bg-gray-900 border-2 border-gray-700 rounded-xl p-8 shadow-xl">
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm">
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Meeting Title *
                 </label>
                 <input
@@ -341,80 +305,35 @@ const RecurringMeetingScheduler = () => {
                   value={meetingTitle}
                   onChange={(e) => setMeetingTitle(e.target.value)}
                   placeholder="e.g., Monthly Team Sync"
-                  className="w-full px-4 py-3 border-2 border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-gray-800 text-white placeholder-gray-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Email (optional)
+                </label>
+                <input
+                  type="email"
+                  value={organizerEmail}
+                  onChange={(e) => setOrganizerEmail(e.target.value)}
+                  placeholder="organizer@example.com"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900"
                 />
               </div>
 
               <button
                 onClick={handleCreateMeeting}
-                disabled={!meetingTitle.trim() || meetingId}
-                className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed transition-all"
+                disabled={!meetingTitle.trim()}
+                className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
               >
                 Create Meeting
               </button>
             </div>
-            
-            {meetingId && meetingData && (
-              <div className="mt-8 pt-8 border-t-2 border-gray-700">
-                <div className="flex items-center gap-2 mb-4">
-                  <Check className="w-5 h-5 text-green-500" />
-                  <h2 className="text-xl font-bold text-white">Meeting Created!</h2>
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    Shareable Link
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={shareLink}
-                      readOnly
-                      className="flex-1 px-4 py-3 border-2 border-gray-600 rounded-lg bg-gray-800 text-gray-300 font-mono text-sm"
-                      onClick={(e) => e.target.select()}
-                    />
-                    <button
-                      onClick={copyLink}
-                      className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all whitespace-nowrap"
-                    >
-                      {showLinkCopied ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
-                </div>
+          </div>
 
-                <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-blue-200">
-                    Share this link with participants to collect their recurring monthly availability.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    onClick={goToMeeting}
-                    className="bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-all"
-                  >
-                    Go to Meeting
-                  </button>
-                  <button
-                    onClick={() => setView('meeting')}
-                    className="bg-gray-800 text-white px-4 py-3 rounded-lg font-semibold hover:bg-gray-700 transition-all border border-gray-600"
-                  >
-                    View Results
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMeetingId(null);
-                      setMeetingData(null);
-                      setMeetingTitle('');
-                      setParticipants([]);
-                    }}
-                    className="border-2 border-gray-600 text-gray-300 px-4 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-all"
-                  >
-                    Create Another
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="mt-8 text-center text-sm text-gray-500">
+            <p>Share a link with participants to collect their recurring availability</p>
           </div>
         </div>
 
@@ -426,13 +345,296 @@ const RecurringMeetingScheduler = () => {
     );
   }
 
-  // Meeting View - Split screen with input on left, results on right
-  if (view === 'meeting') {
+  // Share View - Shows shareable link after creating meeting
+  if (view === 'share') {
     if (!meetingData) {
       return (
-        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="min-h-screen bg-white flex items-center justify-center">
           <div className="text-center">
-            <div className="text-lg text-gray-400">Loading meeting...</div>
+            <div className="text-lg text-gray-600">Loading meeting...</div>
+          </div>
+        </div>
+      );
+    }
+
+    const shareLink = `${window.location.origin}${window.location.pathname}?meeting=${meetingId}`;
+
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="max-w-2xl w-full">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-4xl font-bold mb-3 text-gray-900">
+              Meeting Created!
+            </h1>
+            <p className="text-lg text-gray-600">
+              Share this link with participants to collect their availability
+            </p>
+          </div>
+
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">
+              {meetingData.title}
+            </h2>
+
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                Shareable Link
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={shareLink}
+                  readOnly
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-mono text-sm"
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareLink);
+                    alert('Link copied to clipboard!');
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all whitespace-nowrap"
+                >
+                  Copy Link
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-900">
+                <strong>Next steps:</strong> Share this link via email, Slack, or any messaging platform. 
+                Each participant will use it to submit their recurring monthly availability.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setView('results')}
+                className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all"
+              >
+                View Results
+              </button>
+              <button
+                onClick={() => {
+                  setMeetingId(null);
+                  setMeetingData(null);
+                  setMeetingTitle('');
+                  setOrganizerEmail('');
+                  setView('home');
+                }}
+                className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+              >
+                Create Another Meeting
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          * { font-family: 'Inter', sans-serif; }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Participate View
+  if (view === 'participate') {
+    if (!meetingData) {
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-lg text-gray-600">Loading meeting...</div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2 text-gray-900">
+              {meetingData.title}
+            </h1>
+            <p className="text-gray-600">
+              Select your recurring monthly availability
+            </p>
+          </div>
+
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Name *
+                </label>
+                <input
+                  type="text"
+                  value={participantName}
+                  onChange={(e) => setParticipantName(e.target.value)}
+                  placeholder="Jane Smith"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Email *
+                </label>
+                <input
+                  type="email"
+                  value={participantEmail}
+                  onChange={(e) => setParticipantEmail(e.target.value)}
+                  placeholder="jane@example.com"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <Globe className="w-4 h-4 inline mr-1" />
+                Your Timezone
+              </label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-white"
+              >
+                {timezones.map(tz => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-3 text-gray-900">
+                Step 1: Select Day & Week Combinations
+              </h2>
+              <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                💡 Click and drag to select multiple slots at once
+              </p>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold"></th>
+                      {daysOfWeek.map(day => (
+                        <th key={day} className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
+                          {day}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeksOfMonth.map(week => (
+                      <tr key={week}>
+                        <td className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
+                          {week}
+                        </td>
+                        {daysOfWeek.map(day => {
+                          const key = `${week}-${day}`;
+                          const isSelected = selectedSlots[key];
+                          return (
+                            <td key={key} className="border-2 border-gray-300 p-0">
+                              <button
+                                onMouseDown={() => handleMouseDown(day, week)}
+                                onMouseEnter={() => handleMouseEnter(day, week)}
+                                className={`w-full h-12 transition-all cursor-pointer select-none ${
+                                  isSelected 
+                                    ? 'bg-green-500 hover:bg-green-600' 
+                                    : 'bg-white hover:bg-gray-100'
+                                }`}
+                              >
+                                {isSelected && <Check className="w-5 h-5 mx-auto text-white" />}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {Object.keys(selectedSlots).length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-3 text-gray-900">
+                  Step 2: Select Available Times
+                </h2>
+                <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  💡 Click and drag to select multiple times at once • Times shown in {timezone}
+                </p>
+
+                {Object.keys(selectedSlots).map(slotKey => {
+                  const [week, day] = slotKey.split('-');
+                  return (
+                    <div key={slotKey} className="mb-6 p-5 bg-gray-50 rounded-lg border-2 border-gray-200">
+                      <h3 className="text-lg font-semibold mb-3 text-gray-800">
+                        {week} {day} of each month
+                      </h3>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                        {timeSlots.map(time => {
+                          const isSelected = selectedTimes[slotKey]?.includes(time);
+                          return (
+                            <button
+                              key={time}
+                              onMouseDown={() => handleTimeMouseDown(slotKey, time)}
+                              onMouseEnter={() => handleTimeMouseEnter(slotKey, time)}
+                              className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all select-none ${
+                                isSelected
+                                  ? 'bg-green-500 text-white hover:bg-green-600'
+                                  : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-green-500'
+                              }`}
+                            >
+                              {time}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => setView('results')}
+                className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+              >
+                View Results
+              </button>
+              <button
+                onClick={handleSubmitAvailability}
+                className="flex-1 bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 transition-all"
+              >
+                Submit Availability
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          * { font-family: 'Inter', sans-serif; }
+          button { user-select: none; -webkit-user-select: none; }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Results View
+  if (view === 'results') {
+    if (!meetingData) {
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-lg text-gray-600">Loading meeting...</div>
           </div>
         </div>
       );
@@ -442,305 +644,199 @@ const RecurringMeetingScheduler = () => {
     const maxCount = Math.max(...Object.values(summary).map(s => s.count), 1);
 
     return (
-      <div className="min-h-screen bg-black text-white">
-        <div className="border-b-2 border-gray-800 bg-black sticky top-0 z-10">
-          <div className="max-w-[1800px] mx-auto px-6 py-4">
-            <h1 className="text-3xl font-bold mb-1 text-white">
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2 text-gray-900">
               {meetingData.title}
             </h1>
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              <span>{participants.length} {participants.length === 1 ? 'response' : 'responses'}</span>
+            <p className="text-gray-600 mb-6">
+              {participants.length} {participants.length === 1 ? 'person has' : 'people have'} responded
+            </p>
+
+            <div className="flex justify-center gap-4 flex-wrap">
               <button
                 onClick={copyLink}
-                className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300"
+                className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-all"
               >
                 <LinkIcon className="w-4 h-4" />
-                {showLinkCopied ? 'Copied!' : 'Copy Link'}
+                Copy Invite Link
+              </button>
+              <button
+                onClick={() => setView('participate')}
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-all"
+              >
+                <Users className="w-4 h-4" />
+                Add Your Availability
+              </button>
+              <button
+                onClick={() => {
+                  setMeetingId(null);
+                  setMeetingData(null);
+                  setParticipants([]);
+                  setView('home');
+                }}
+                className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+              >
+                <Calendar className="w-4 h-4" />
+                Create New Meeting
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 max-w-[1800px] mx-auto px-6 py-8">
-          {/* LEFT SIDE - Input Form */}
-          <div className="space-y-6">
-            <div className="bg-gray-900 border-2 border-gray-700 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 text-white">Your Availability</h2>
-              
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    Your Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={participantName}
-                    onChange={(e) => setParticipantName(e.target.value)}
-                    placeholder="Jane Smith"
-                    className="w-full px-4 py-3 border-2 border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-gray-800 text-white placeholder-gray-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    Your Email (optional)
-                  </label>
-                  <input
-                    type="email"
-                    value={participantEmail}
-                    onChange={(e) => setParticipantEmail(e.target.value)}
-                    onBlur={loadExistingAvailability}
-                    placeholder="jane@example.com"
-                    className="w-full px-4 py-3 border-2 border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-gray-800 text-white placeholder-gray-500"
-                  />
-                </div>
-              </div>
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
+            <h2 className="text-2xl font-bold mb-5 text-gray-900">
+              Availability Overview
+            </h2>
 
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-300 mb-2">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  Your Timezone
-                </label>
-                <select
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-gray-800 text-white"
-                >
-                  {timezones.map(tz => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4 mb-6 text-sm text-blue-200">
-                <strong>Instructions:</strong> Click the boxes below to select the day-week combinations when you're available (e.g., "1st Monday"). Then select your available times for each selection. You can update your availability anytime.
-              </div>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-bold mb-3 text-white">Step 1: Select Day & Week</h3>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ border: '1px solid #9ca3af' }} className="p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week of Month</th>
-                        {daysOfWeek.map(day => (
-                          <th key={day} style={{ border: '1px solid #9ca3af' }} className="p-2 bg-gray-800 text-xs font-semibold text-gray-300">
-                            {day.substring(0, 3)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeksOfMonth.map(week => (
-                        <tr key={week}>
-                          <td style={{ border: '1px solid #9ca3af' }} className="p-2 bg-gray-800 text-xs font-semibold text-gray-300">
-                            {week}
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold"></th>
+                    {daysOfWeek.map(day => (
+                      <th key={day} className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeksOfMonth.map(week => (
+                    <tr key={week}>
+                      <td className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
+                        {week}
+                      </td>
+                      {daysOfWeek.map(day => {
+                        const key = `${week}-${day}`;
+                        const count = summary[key]?.count || 0;
+                        const opacity = count / maxCount;
+                        
+                        return (
+                          <td key={key} className="border-2 border-gray-300 p-0">
+                            <div
+                              className="h-12 flex items-center justify-center transition-all cursor-pointer"
+                              style={{
+                                backgroundColor: count > 0 
+                                  ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})` 
+                                  : 'white'
+                              }}
+                              title={count > 0 ? `${count} available` : 'No availability'}
+                            >
+                              {count > 0 && (
+                                <div className="text-white font-bold text-base">
+                                  {count}
+                                </div>
+                              )}
+                            </div>
                           </td>
-                          {daysOfWeek.map(day => {
-                            const key = `${week}-${day}`;
-                            const isSelected = selectedSlots[key];
-                            return (
-                              <td key={key} style={{ border: '1px solid #9ca3af', padding: 0 }}>
-                                <button
-                                  onClick={() => toggleSlot(day, week)}
-                                  className={`w-full h-12 transition-all cursor-pointer ${
-                                    isSelected 
-                                      ? 'bg-green-600 hover:bg-green-500' 
-                                      : 'bg-gray-800 hover:bg-gray-700'
-                                  }`}
-                                >
-                                  {isSelected && <Check className="w-5 h-5 mx-auto text-white" />}
-                                </button>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center gap-6 text-sm">
+              <span className="text-gray-600 font-semibold">Availability:</span>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded border-2 border-gray-300" style={{ backgroundColor: 'rgba(34, 197, 94, 0.3)' }}></div>
+                <span className="text-gray-600">Low</span>
               </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded border-2 border-gray-300" style={{ backgroundColor: 'rgba(34, 197, 94, 0.65)' }}></div>
+                <span className="text-gray-600">Medium</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded border-2 border-gray-300" style={{ backgroundColor: 'rgba(34, 197, 94, 1)' }}></div>
+                <span className="text-gray-600">High</span>
+              </div>
+            </div>
 
-              {Object.keys(selectedSlots).length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-bold mb-3 text-white">Step 2: Select Times</h3>
-                  <p className="text-sm text-gray-400 mb-4">Click times to select/deselect. Times shown in {timezone}</p>
-
-                  {Object.keys(selectedSlots).map(slotKey => {
+            {Object.keys(summary).length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-xl font-bold mb-4 text-gray-900">
+                  Detailed Time Breakdown
+                </h3>
+                
+                {Object.entries(summary)
+                  .sort(([, a], [, b]) => b.count - a.count)
+                  .map(([slotKey, data]) => {
                     const [week, day] = slotKey.split('-');
                     return (
-                      <div key={slotKey} className="mb-4 p-4 bg-gray-800 rounded-lg border-2 border-gray-700">
-                        <h4 className="text-base font-semibold mb-3 text-gray-200">
-                          {week} {day}
-                        </h4>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                          {timeSlots.map(time => {
-                            const isSelected = selectedTimes[slotKey]?.includes(time);
-                            return (
-                              <button
-                                key={time}
-                                onClick={() => toggleTime(slotKey, time)}
-                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                                  isSelected
-                                    ? 'bg-green-600 text-white hover:bg-green-500'
-                                    : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
-                                }`}
-                              >
-                                {time}
-                              </button>
-                            );
-                          })}
+                      <div key={slotKey} className="mb-5 p-5 bg-gray-50 rounded-lg border-2 border-gray-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-lg font-semibold text-gray-800">
+                            {week} {day}
+                          </h4>
+                          <span className="px-4 py-1.5 bg-green-500 text-white rounded-full text-sm font-semibold">
+                            {data.count} {data.count === 1 ? 'person' : 'people'}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {Object.entries(data.times)
+                            .sort(([, a], [, b]) => b.length - a.length)
+                            .map(([time, names]) => (
+                              <div key={time} className="flex items-center gap-4">
+                                <div className="w-20 text-sm font-semibold text-gray-700">
+                                  {time}
+                                </div>
+                                <div className="flex-1 flex items-center gap-2">
+                                  <div className="flex-1 bg-white rounded-lg px-3 py-2 text-sm text-gray-600 border border-gray-200">
+                                    {names.join(', ')}
+                                  </div>
+                                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                                    {names.length}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     );
                   })}
-                </div>
-              )}
-
-              <button
-                onClick={handleSubmitAvailability}
-                className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 transition-all"
-              >
-                Submit Availability
-              </button>
-            </div>
-          </div>
-
-          {/* RIGHT SIDE - Results */}
-          <div className="space-y-6">
-            <div className="bg-gray-900 border-2 border-gray-700 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 text-white">Group Availability</h2>
-
-              <div className="grid lg:grid-cols-3 gap-6">
-                {/* Heat Map Grid */}
-                <div className="lg:col-span-2">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
-                      <thead>
-                        <tr>
-                          <th className="p-2 bg-gray-800 text-xs font-semibold text-gray-400" style={{ border: '1px solid #4b5563' }}>Week</th>
-                          {daysOfWeek.map(day => (
-                            <th key={day} className="p-2 bg-gray-800 text-xs font-semibold text-gray-300" style={{ border: '1px solid #4b5563' }}>
-                              {day.substring(0, 3)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {weeksOfMonth.map(week => (
-                          <tr key={week}>
-                            <td className="p-2 bg-gray-800 text-xs font-semibold text-gray-300" style={{ border: '1px solid #4b5563' }}>
-                              {week}
-                            </td>
-                            {daysOfWeek.map(day => {
-                              const key = `${week}-${day}`;
-                              const count = summary[key]?.count || 0;
-                              const opacity = count / maxCount;
-                              const isSelected = selectedCell === key;
-                              
-                              return (
-                                <td key={key} style={{ padding: 0, border: 'none' }}>
-                                  <button
-                                    onClick={() => setSelectedCell(key)}
-                                    className="w-full h-16 flex items-center justify-center transition-all cursor-pointer hover:opacity-80"
-                                    style={{
-                                      backgroundColor: count > 0 
-                                        ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})` 
-                                        : 'rgb(31, 41, 55)',
-                                      outline: isSelected ? '3px solid #3b82f6' : 'none',
-                                      outlineOffset: isSelected ? '-3px' : '0',
-                                      border: 'none'
-                                    }}
-                                    title={count > 0 ? `${count} available - click for details` : 'No availability'}
-                                  >
-                                    {count > 0 && (
-                                      <div className="text-white font-bold text-lg">
-                                        {count}
-                                      </div>
-                                    )}
-                                  </button>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Details Panel */}
-                <div className="lg:col-span-1">
-                  {selectedCell && summary[selectedCell] ? (
-                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                      <h3 className="font-bold text-white mb-3">
-                        {selectedCell.split('-')[0]} {selectedCell.split('-')[1]}
-                      </h3>
-                      <div className="mb-3">
-                        <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold">
-                          {summary[selectedCell].count} {summary[selectedCell].count === 1 ? 'person' : 'people'}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-3 text-sm max-h-96 overflow-y-auto">
-                        {Object.entries(summary[selectedCell].times)
-                          .sort(([, a], [, b]) => b.length - a.length)
-                          .map(([time, names]) => (
-                            <div key={time} className="border-b border-gray-700 pb-2">
-                              <div className="font-semibold text-green-400 mb-1">{time}</div>
-                              {participants
-                                .filter(p => names.includes(p.name))
-                                .map((p, idx) => (
-                                  <div key={idx} className="text-gray-400 text-xs ml-2">
-                                    • {p.name} {p.email !== 'Not provided' ? `(${p.email})` : ''}
-                                  </div>
-                                ))}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 text-center text-gray-400">
-                      Click a cell to view details
-                    </div>
-                  )}
-                </div>
               </div>
+            )}
 
-              {participants.length === 0 && (
-                <div className="text-center py-12">
-                  <Users className="w-16 h-16 mx-auto text-gray-700 mb-4" />
-                  <p className="text-gray-400">
-                    No responses yet. Share the link to get started!
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {participants.length > 0 && (
-              <div className="bg-gray-900 border-2 border-gray-700 rounded-xl p-6">
-                <h2 className="text-xl font-bold mb-4 text-white">Participants ({participants.length})</h2>
-                <div className="space-y-2">
-                  {participants.map((participant, idx) => (
-                    <div key={idx} className="p-3 bg-gray-800 rounded-lg border border-gray-700">
-                      <div className="font-semibold text-gray-200 text-sm">
-                        {participant.name}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {participant.email !== 'Not provided' ? participant.email : 'No email'} • {Object.keys(participant.availability).length} slot{Object.keys(participant.availability).length !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {participants.length === 0 && (
+              <div className="text-center py-12">
+                <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-lg text-gray-500">
+                  No responses yet. Share the invite link to get started!
+                </p>
               </div>
             )}
           </div>
+
+          {participants.length > 0 && (
+            <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm">
+              <h2 className="text-2xl font-bold mb-5 text-gray-900">
+                Participants ({participants.length})
+              </h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {participants.map((participant, idx) => (
+                  <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="font-semibold text-gray-800">
+                      {participant.name}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {participant.email}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      {Object.keys(participant.availability).length} slot{Object.keys(participant.availability).length !== 1 ? 's' : ''} available
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
           * { font-family: 'Inter', sans-serif; }
-          button { user-select: none; -webkit-user-select: none; }
         `}</style>
       </div>
     );
