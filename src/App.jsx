@@ -15,6 +15,7 @@ const RecurringMeetingScheduler = () => {
   const [selectedTimes, setSelectedTimes] = useState({});
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [existingParticipantIndex, setExistingParticipantIndex] = useState(null);
+  const [selectedCell, setSelectedCell] = useState(null); // For showing details on click
   
   // Setup form state
   const [meetingTitle, setMeetingTitle] = useState('');
@@ -521,9 +522,9 @@ const RecurringMeetingScheduler = () => {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr>
-                        <th className="border-2 border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week of Month</th>
+                        <th className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week of Month</th>
                         {daysOfWeek.map(day => (
-                          <th key={day} className="border-2 border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                          <th key={day} className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
                             {day.substring(0, 3)}
                           </th>
                         ))}
@@ -532,14 +533,14 @@ const RecurringMeetingScheduler = () => {
                     <tbody>
                       {weeksOfMonth.map(week => (
                         <tr key={week}>
-                          <td className="border-2 border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                          <td className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
                             {week}
                           </td>
                           {daysOfWeek.map(day => {
                             const key = `${week}-${day}`;
                             const isSelected = selectedSlots[key];
                             return (
-                              <td key={key} className="border-2 border-gray-700 p-0">
+                              <td key={key} className="border border-gray-700 p-0">
                                 <button
                                   onClick={() => toggleSlot(day, week)}
                                   className={`w-full h-12 transition-all cursor-pointer ${
@@ -611,56 +612,99 @@ const RecurringMeetingScheduler = () => {
             <div className="bg-gray-900 border-2 border-gray-700 rounded-xl p-6">
               <h2 className="text-2xl font-bold mb-4 text-white">Group Availability</h2>
 
-              <div className="overflow-x-auto mb-6">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="border-2 border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week</th>
-                      {daysOfWeek.map(day => (
-                        <th key={day} className="border-2 border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
-                          {day.substring(0, 3)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeksOfMonth.map(week => (
-                      <tr key={week}>
-                        <td className="border-2 border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
-                          {week}
-                        </td>
-                        {daysOfWeek.map(day => {
-                          const key = `${week}-${day}`;
-                          const data = summary[key];
-                          
-                          return (
-                            <td key={key} className="border-2 border-gray-700 p-2 bg-gray-800 text-xs align-top">
-                              {data && data.count > 0 ? (
-                                <div className="space-y-1">
-                                  <div className="font-bold text-green-400 mb-1">{data.count} {data.count === 1 ? 'person' : 'people'}</div>
-                                  {Object.entries(data.times)
-                                    .sort(([, a], [, b]) => b.length - a.length)
-                                    .slice(0, 3)
-                                    .map(([time, names]) => (
-                                      <div key={time} className="text-gray-400">
-                                        <div className="font-semibold text-gray-300">{time}</div>
-                                        <div className="text-xs">{names.join(', ')}</div>
-                                      </div>
-                                    ))}
-                                  {Object.keys(data.times).length > 3 && (
-                                    <div className="text-xs text-gray-500 italic">+{Object.keys(data.times).length - 3} more times</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-gray-600 text-center">—</div>
-                              )}
+              <div className="grid lg:grid-cols-3 gap-6">
+                {/* Heat Map Grid */}
+                <div className="lg:col-span-2">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week</th>
+                          {daysOfWeek.map(day => (
+                            <th key={day} className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                              {day.substring(0, 3)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeksOfMonth.map(week => (
+                          <tr key={week}>
+                            <td className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                              {week}
                             </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            {daysOfWeek.map(day => {
+                              const key = `${week}-${day}`;
+                              const count = summary[key]?.count || 0;
+                              const opacity = count / maxCount;
+                              const isSelected = selectedCell === key;
+                              
+                              return (
+                                <td key={key} className="border border-gray-700 p-0">
+                                  <button
+                                    onClick={() => setSelectedCell(key)}
+                                    className="w-full h-16 flex items-center justify-center transition-all cursor-pointer hover:opacity-80"
+                                    style={{
+                                      backgroundColor: count > 0 
+                                        ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})` 
+                                        : 'rgb(31, 41, 55)',
+                                      outline: isSelected ? '2px solid #3b82f6' : 'none',
+                                      outlineOffset: isSelected ? '-2px' : '0'
+                                    }}
+                                    title={count > 0 ? `${count} available - click for details` : 'No availability'}
+                                  >
+                                    {count > 0 && (
+                                      <div className="text-white font-bold text-lg">
+                                        {count}
+                                      </div>
+                                    )}
+                                  </button>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Details Panel */}
+                <div className="lg:col-span-1">
+                  {selectedCell && summary[selectedCell] ? (
+                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                      <h3 className="font-bold text-white mb-3">
+                        {selectedCell.split('-')[0]} {selectedCell.split('-')[1]}
+                      </h3>
+                      <div className="mb-3">
+                        <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold">
+                          {summary[selectedCell].count} {summary[selectedCell].count === 1 ? 'person' : 'people'}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3 text-sm max-h-96 overflow-y-auto">
+                        {Object.entries(summary[selectedCell].times)
+                          .sort(([, a], [, b]) => b.length - a.length)
+                          .map(([time, names]) => (
+                            <div key={time} className="border-b border-gray-700 pb-2">
+                              <div className="font-semibold text-green-400 mb-1">{time}</div>
+                              {participants
+                                .filter(p => names.includes(p.name))
+                                .map((p, idx) => (
+                                  <div key={idx} className="text-gray-400 text-xs ml-2">
+                                    • {p.name} {p.email !== 'Not provided' ? `(${p.email})` : ''}
+                                  </div>
+                                ))}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 text-center text-gray-400">
+                      Click a cell to view details
+                    </div>
+                  )}
+                </div>
               </div>
 
               {participants.length === 0 && (
