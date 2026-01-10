@@ -519,12 +519,12 @@ const RecurringMeetingScheduler = () => {
                 <h3 className="text-lg font-bold mb-3 text-white">Step 1: Select Day & Week</h3>
                 
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
                     <thead>
                       <tr>
-                        <th className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week of Month</th>
+                        <th style={{ border: '1px solid #9ca3af' }} className="p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week of Month</th>
                         {daysOfWeek.map(day => (
-                          <th key={day} className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                          <th key={day} style={{ border: '1px solid #9ca3af' }} className="p-2 bg-gray-800 text-xs font-semibold text-gray-300">
                             {day.substring(0, 3)}
                           </th>
                         ))}
@@ -533,14 +533,14 @@ const RecurringMeetingScheduler = () => {
                     <tbody>
                       {weeksOfMonth.map(week => (
                         <tr key={week}>
-                          <td className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                          <td style={{ border: '1px solid #9ca3af' }} className="p-2 bg-gray-800 text-xs font-semibold text-gray-300">
                             {week}
                           </td>
                           {daysOfWeek.map(day => {
                             const key = `${week}-${day}`;
                             const isSelected = selectedSlots[key];
                             return (
-                              <td key={key} className="border border-gray-700 p-0">
+                              <td key={key} style={{ border: '1px solid #9ca3af', padding: 0 }}>
                                 <button
                                   onClick={() => toggleSlot(day, week)}
                                   className={`w-full h-12 transition-all cursor-pointer ${
@@ -564,7 +564,7 @@ const RecurringMeetingScheduler = () => {
               {Object.keys(selectedSlots).length > 0 && (
                 <div className="mb-6">
                   <h3 className="text-lg font-bold mb-3 text-white">Step 2: Select Times</h3>
-                  <p className="text-sm text-gray-400 mb-4">Click and drag to select multiple times. Times shown in {timezone}</p>
+                  <p className="text-sm text-gray-400 mb-4">Click times to select/deselect. Times shown in {timezone}</p>
 
                   {Object.keys(selectedSlots).map(slotKey => {
                     const [week, day] = slotKey.split('-');
@@ -579,12 +579,11 @@ const RecurringMeetingScheduler = () => {
                             return (
                               <button
                                 key={time}
-                                onMouseDown={() => handleTimeMouseDown(slotKey, time)}
-                                onMouseEnter={() => handleTimeMouseEnter(slotKey, time)}
-                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all select-none ${
+                                onClick={() => toggleTime(slotKey, time)}
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                                   isSelected
-                                    ? 'bg-green-700 text-white hover:bg-green-600 border-2 border-green-500'
-                                    : 'bg-gray-700 border-2 border-gray-600 text-gray-300 hover:border-green-600'
+                                    ? 'bg-green-600 text-white hover:bg-green-500'
+                                    : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
                                 }`}
                               >
                                 {time}
@@ -616,12 +615,12 @@ const RecurringMeetingScheduler = () => {
                 {/* Heat Map Grid */}
                 <div className="lg:col-span-2">
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
+                    <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
                       <thead>
                         <tr>
-                          <th className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-400">Week</th>
+                          <th className="p-2 bg-gray-800 text-xs font-semibold text-gray-400" style={{ border: '1px solid #4b5563' }}>Week</th>
                           {daysOfWeek.map(day => (
-                            <th key={day} className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                            <th key={day} className="p-2 bg-gray-800 text-xs font-semibold text-gray-300" style={{ border: '1px solid #4b5563' }}>
                               {day.substring(0, 3)}
                             </th>
                           ))}
@@ -630,7 +629,7 @@ const RecurringMeetingScheduler = () => {
                       <tbody>
                         {weeksOfMonth.map(week => (
                           <tr key={week}>
-                            <td className="border border-gray-700 p-2 bg-gray-800 text-xs font-semibold text-gray-300">
+                            <td className="p-2 bg-gray-800 text-xs font-semibold text-gray-300" style={{ border: '1px solid #4b5563' }}>
                               {week}
                             </td>
                             {daysOfWeek.map(day => {
@@ -640,7 +639,7 @@ const RecurringMeetingScheduler = () => {
                               const isSelected = selectedCell === key;
                               
                               return (
-                                <td key={key} className="border border-gray-700 p-0">
+                                <td key={key} style={{ padding: 0, border: 'none' }}>
                                   <button
                                     onClick={() => setSelectedCell(key)}
                                     className="w-full h-16 flex items-center justify-center transition-all cursor-pointer hover:opacity-80"
@@ -648,8 +647,9 @@ const RecurringMeetingScheduler = () => {
                                       backgroundColor: count > 0 
                                         ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})` 
                                         : 'rgb(31, 41, 55)',
-                                      outline: isSelected ? '2px solid #3b82f6' : 'none',
-                                      outlineOffset: isSelected ? '-2px' : '0'
+                                      outline: isSelected ? '3px solid #3b82f6' : 'none',
+                                      outlineOffset: isSelected ? '-3px' : '0',
+                                      border: 'none'
                                     }}
                                     title={count > 0 ? `${count} available - click for details` : 'No availability'}
                                   >
