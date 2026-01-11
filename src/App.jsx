@@ -90,7 +90,7 @@ const RecurringMeetingScheduler = () => {
       
       setMeetingId(newMeetingId);
       setMeetingData(meeting);
-      setView('share');
+      // Stay on home view - don't change view
     } catch (error) {
       alert('Failed to create meeting. Please try again.');
     }
@@ -280,8 +280,10 @@ const RecurringMeetingScheduler = () => {
     }
   }, []);
 
-  // Home View
+  // Home View - Combined with meeting creation success
   if (view === 'home') {
+    const shareLink = meetingId ? `${window.location.origin}${window.location.pathname}?meeting=${meetingId}` : '';
+    
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-2xl mx-auto px-6 py-16">
@@ -324,17 +326,87 @@ const RecurringMeetingScheduler = () => {
 
               <button
                 onClick={handleCreateMeeting}
-                disabled={!meetingTitle.trim()}
+                disabled={!meetingTitle.trim() || meetingId}
                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
               >
                 Create Meeting
               </button>
             </div>
+            
+            {/* Show Meeting Created section after creation */}
+            {meetingId && meetingData && (
+              <div className="mt-8 pt-8 border-t-2 border-gray-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <Check className="w-5 h-5 text-green-600" />
+                  <h2 className="text-xl font-bold text-gray-900">Meeting Created!</h2>
+                </div>
+                
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Shareable Link
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={shareLink}
+                      readOnly
+                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-mono text-sm"
+                      onClick={(e) => e.target.select()}
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(shareLink);
+                        alert('Link copied to clipboard!');
+                      }}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all whitespace-nowrap"
+                    >
+                      Copy Link
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-blue-900">
+                    <strong>Next steps:</strong> Share this link via email, Slack, or any messaging platform. 
+                    Each participant will use it to submit their recurring monthly availability.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setView('participate')}
+                    className="bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-all"
+                  >
+                    Add Availability
+                  </button>
+                  <button
+                    onClick={() => setView('results')}
+                    className="bg-gray-100 text-gray-700 px-4 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    View Results
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMeetingId(null);
+                      setMeetingData(null);
+                      setMeetingTitle('');
+                      setOrganizerEmail('');
+                      setView('home');
+                    }}
+                    className="border-2 border-gray-300 text-gray-700 px-4 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+                  >
+                    Create Another Meeting
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="mt-8 text-center text-sm text-gray-500">
-            <p>Share a link with participants to collect their recurring availability</p>
-          </div>
+          {!meetingId && (
+            <div className="mt-8 text-center text-sm text-gray-500">
+              <p>Share a link with participants to collect their recurring availability</p>
+            </div>
+          )}
         </div>
 
         <style>{`
@@ -345,100 +417,11 @@ const RecurringMeetingScheduler = () => {
     );
   }
 
-  // Share View - Shows shareable link after creating meeting
+  // Share View - Remove this, now combined with home
   if (view === 'share') {
-    if (!meetingData) {
-      return (
-        <div className="min-h-screen bg-white flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-lg text-gray-600">Loading meeting...</div>
-          </div>
-        </div>
-      );
-    }
-
-    const shareLink = `${window.location.origin}${window.location.pathname}?meeting=${meetingId}`;
-
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-6">
-        <div className="max-w-2xl w-full">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-              <Check className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-4xl font-bold mb-3 text-gray-900">
-              Meeting Created!
-            </h1>
-            <p className="text-lg text-gray-600">
-              Share this link with participants to collect their availability
-            </p>
-          </div>
-
-          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 shadow-sm mb-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">
-              {meetingData.title}
-            </h2>
-
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                Shareable Link
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={shareLink}
-                  readOnly
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-mono text-sm"
-                  onClick={(e) => e.target.select()}
-                />
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareLink);
-                    alert('Link copied to clipboard!');
-                  }}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all whitespace-nowrap"
-                >
-                  Copy Link
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-900">
-                <strong>Next steps:</strong> Share this link via email, Slack, or any messaging platform. 
-                Each participant will use it to submit their recurring monthly availability.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setView('results')}
-                className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all"
-              >
-                View Results
-              </button>
-              <button
-                onClick={() => {
-                  setMeetingId(null);
-                  setMeetingData(null);
-                  setMeetingTitle('');
-                  setOrganizerEmail('');
-                  setView('home');
-                }}
-                className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all"
-              >
-                Create Another Meeting
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-          * { font-family: 'Inter', sans-serif; }
-        `}</style>
-      </div>
-    );
+    // Redirect to home if someone lands here
+    setView('home');
+    return null;
   }
 
   // Participate View
