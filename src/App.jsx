@@ -18,25 +18,6 @@ const RecurringMeetingScheduler = () => {
   const [meetingTitle, setMeetingTitle] = useState('');
   const [organizerEmail, setOrganizerEmail] = useState('');
   
-  // Host configuration state
-  const [meetingTimezone, setMeetingTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [earliestStartTime, setEarliestStartTime] = useState('9:00 AM');
-  const [latestStartTime, setLatestStartTime] = useState('5:00 PM');
-  const [hostSelectedDays, setHostSelectedDays] = useState([...daysOfWeek]); // All days selected by default
-  const [hostSelectedWeeks, setHostSelectedWeeks] = useState([...weeksOfMonth]); // All weeks selected by default
-  
-  // Generate time options from 6 AM to 9 PM
-  const generateTimeOptions = () => {
-    const times = [];
-    for (let hour = 6; hour <= 21; hour++) {
-      const period = hour < 12 ? 'AM' : 'PM';
-      const displayHour = hour === 0 ? 12 : hour <= 12 ? hour : hour - 12;
-      times.push(`${displayHour}:00 ${period}`);
-    }
-    return times;
-  };
-  const timeOptions = generateTimeOptions();
-  
   // Drag selection state
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
@@ -94,21 +75,12 @@ const RecurringMeetingScheduler = () => {
   // Create new meeting
   const handleCreateMeeting = () => {
     if (!meetingTitle.trim()) return;
-    if (hostSelectedDays.length === 0 || hostSelectedWeeks.length === 0) {
-      alert('Please select at least one day and one week');
-      return;
-    }
     
     const newMeetingId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const meeting = {
       id: newMeetingId,
       title: meetingTitle,
       organizerEmail,
-      timezone: meetingTimezone,
-      earliestStartTime: earliestStartTime,
-      latestStartTime: latestStartTime,
-      availableDays: hostSelectedDays,
-      availableWeeks: hostSelectedWeeks,
       createdAt: new Date().toISOString()
     };
     
@@ -352,176 +324,9 @@ const RecurringMeetingScheduler = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  Time Zone *
-                </label>
-                <select
-                  value={meetingTimezone}
-                  onChange={(e) => setMeetingTimezone(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900 bg-white"
-                >
-                  {timezones.map(tz => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Clock className="w-4 h-4 inline mr-1" />
-                    Earliest Start Time *
-                  </label>
-                  <select
-                    value={earliestStartTime}
-                    onChange={(e) => setEarliestStartTime(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900 bg-white"
-                  >
-                    {timeOptions.map(time => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Clock className="w-4 h-4 inline mr-1" />
-                    Latest Start Time *
-                  </label>
-                  <select
-                    value={latestStartTime}
-                    onChange={(e) => setLatestStartTime(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900 bg-white"
-                  >
-                    {timeOptions.map(time => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold mb-3 text-gray-900">
-                  Step 1: Select Available Days & Weeks *
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Choose which day-week combinations guests can select from
-                </p>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold"></th>
-                        {hostSelectedDays.map(day => (
-                          <th key={day} className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
-                            {day}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeksOfMonth.map(week => (
-                        <tr key={week}>
-                          <td className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
-                            {week}
-                          </td>
-                          {daysOfWeek.map(day => {
-                            const isDaySelected = hostSelectedDays.includes(day);
-                            const isWeekSelected = hostSelectedWeeks.includes(week);
-                            const isAvailable = isDaySelected && isWeekSelected;
-                            
-                            return (
-                              <td key={`${week}-${day}`} className="border-2 border-gray-300 p-0">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    // Toggle this specific combination
-                                    const key = `${week}-${day}`;
-                                    // For now, just show it as available if both day and week are selected
-                                  }}
-                                  className={`w-full h-12 transition-all cursor-pointer ${
-                                    isAvailable 
-                                      ? 'bg-blue-500 hover:bg-blue-600' 
-                                      : 'bg-gray-200 hover:bg-gray-300'
-                                  }`}
-                                  disabled={!isDaySelected || !isWeekSelected}
-                                >
-                                  {isAvailable && <Check className="w-5 h-5 mx-auto text-white" />}
-                                </button>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Available Days of Week
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {daysOfWeek.map(day => (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => {
-                            setHostSelectedDays(prev => 
-                              prev.includes(day) 
-                                ? prev.filter(d => d !== day)
-                                : [...prev, day]
-                            );
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            hostSelectedDays.includes(day)
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {day.substring(0, 3)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Available Weeks of Month
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {weeksOfMonth.map(week => (
-                        <button
-                          key={week}
-                          type="button"
-                          onClick={() => {
-                            setHostSelectedWeeks(prev => 
-                              prev.includes(week) 
-                                ? prev.filter(w => w !== week)
-                                : [...prev, week]
-                            );
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            hostSelectedWeeks.includes(week)
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {week}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <button
                 onClick={handleCreateMeeting}
-                disabled={!meetingTitle.trim() || meetingId || hostSelectedDays.length === 0 || hostSelectedWeeks.length === 0}
+                disabled={!meetingTitle.trim() || meetingId}
                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
               >
                 Create Meeting
