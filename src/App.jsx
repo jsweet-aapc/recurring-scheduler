@@ -2,16 +2,37 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, Mail, Users, Link as LinkIcon, Check, X, Globe } from 'lucide-react';
 
 const RecurringMeetingScheduler = () => {
-  // ============================================
-  // CONSTANTS - Must be defined BEFORE state that uses them
-  // ============================================
+  const [view, setView] = useState('home'); // home, share, participate, results
+  const [meetingId, setMeetingId] = useState(null);
+  const [meetingData, setMeetingData] = useState(null);
+  const [participants, setParticipants] = useState([]);
+  
+  // Participant form state
+  const [participantName, setParticipantName] = useState('');
+  const [participantEmail, setParticipantEmail] = useState('');
+  const [selectedSlots, setSelectedSlots] = useState({});
+  const [selectedTimes, setSelectedTimes] = useState({});
+  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  
+  // Setup form state
+  const [meetingTitle, setMeetingTitle] = useState('');
+  const [organizerEmail, setOrganizerEmail] = useState('');
+  
+  // Drag selection state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState(null);
+  const [dragMode, setDragMode] = useState(null); // 'select' or 'deselect'
+  const [isTimeDragging, setIsTimeDragging] = useState(false);
+  const [timeDragStart, setTimeDragStart] = useState(null);
+  const [timeDragMode, setTimeDragMode] = useState(null);
+  
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weeksOfMonth = ['1st', '2nd', '3rd', '4th', '5th'];
   const timeSlots = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'];
-
+  
   const timezones = [
     'America/New_York',
-    'America/Chicago',
+    'America/Chicago', 
     'America/Denver',
     'America/Los_Angeles',
     'America/Phoenix',
@@ -24,63 +45,17 @@ const RecurringMeetingScheduler = () => {
     'Australia/Sydney'
   ];
 
-  // Generate time options from 6 AM to 9 PM
-  const generateTimeOptions = () => {
-    const times = [];
-    for (let hour = 6; hour <= 21; hour++) {
-      const period = hour < 12 ? 'AM' : 'PM';
-      const displayHour = hour === 0 ? 12 : hour <= 12 ? hour : hour - 12;
-      times.push(`${displayHour}:00 ${period}`);
-    }
-    return times;
-  };
-  const timeOptions = generateTimeOptions();
-
-  // ============================================
-  // STATE - Now safe to use constants above
-  // ============================================
-  const [view, setView] = useState('home'); // home, share, participate, results
-  const [meetingId, setMeetingId] = useState(null);
-  const [meetingData, setMeetingData] = useState(null);
-  const [participants, setParticipants] = useState([]);
-
-  // Participant form state
-  const [participantName, setParticipantName] = useState('');
-  const [participantEmail, setParticipantEmail] = useState('');
-  const [selectedSlots, setSelectedSlots] = useState({});
-  const [selectedTimes, setSelectedTimes] = useState({});
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-
-  // Setup form state
-  const [meetingTitle, setMeetingTitle] = useState('');
-  const [organizerEmail, setOrganizerEmail] = useState('');
-
-  // Host configuration state - NOW SAFE because daysOfWeek and weeksOfMonth are defined above
-  const [meetingTimezone, setMeetingTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [earliestStartTime, setEarliestStartTime] = useState('9:00 AM');
-  const [latestStartTime, setLatestStartTime] = useState('5:00 PM');
-  const [hostSelectedDays, setHostSelectedDays] = useState([...daysOfWeek]); // All days selected by default
-  const [hostSelectedWeeks, setHostSelectedWeeks] = useState([...weeksOfMonth]); // All weeks selected by default
-
-  // Drag selection state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState(null);
-  const [dragMode, setDragMode] = useState(null); // 'select' or 'deselect'
-  const [isTimeDragging, setIsTimeDragging] = useState(false);
-  const [timeDragStart, setTimeDragStart] = useState(null);
-  const [timeDragMode, setTimeDragMode] = useState(null);
-
   // Load meeting data and participants
   useEffect(() => {
     const loadData = () => {
       if (!meetingId) return;
-
+      
       try {
         const meetingData = localStorage.getItem(`meeting:${meetingId}`);
         if (meetingData) {
           setMeetingData(JSON.parse(meetingData));
         }
-
+        
         const participantsData = localStorage.getItem(`participants:${meetingId}`);
         if (participantsData) {
           setParticipants(JSON.parse(participantsData));
@@ -89,9 +64,9 @@ const RecurringMeetingScheduler = () => {
         console.log('Meeting not found or error loading:', error);
       }
     };
-
+    
     loadData();
-
+    
     // Poll for updates every 3 seconds
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
@@ -100,28 +75,19 @@ const RecurringMeetingScheduler = () => {
   // Create new meeting
   const handleCreateMeeting = () => {
     if (!meetingTitle.trim()) return;
-    if (hostSelectedDays.length === 0 || hostSelectedWeeks.length === 0) {
-      alert('Please select at least one day and one week');
-      return;
-    }
-
+    
     const newMeetingId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const meeting = {
       id: newMeetingId,
       title: meetingTitle,
       organizerEmail,
-      timezone: meetingTimezone,
-      earliestStartTime: earliestStartTime,
-      latestStartTime: latestStartTime,
-      availableDays: hostSelectedDays,
-      availableWeeks: hostSelectedWeeks,
       createdAt: new Date().toISOString()
     };
-
+    
     try {
       localStorage.setItem(`meeting:${newMeetingId}`, JSON.stringify(meeting));
       localStorage.setItem(`participants:${newMeetingId}`, JSON.stringify([]));
-
+      
       setMeetingId(newMeetingId);
       setMeetingData(meeting);
       // Stay on home view - don't change view
@@ -154,7 +120,7 @@ const RecurringMeetingScheduler = () => {
       return newSlots;
     });
   };
-
+  
   // Drag selection for grid
   const handleMouseDown = (day, week) => {
     const key = `${week}-${day}`;
@@ -163,24 +129,24 @@ const RecurringMeetingScheduler = () => {
     setDragMode(selectedSlots[key] ? 'deselect' : 'select');
     toggleSlot(day, week);
   };
-
+  
   const handleMouseEnter = (day, week) => {
     if (!isDragging) return;
     const key = `${week}-${day}`;
-
+    
     if (dragMode === 'select' && !selectedSlots[key]) {
       toggleSlot(day, week);
     } else if (dragMode === 'deselect' && selectedSlots[key]) {
       toggleSlot(day, week);
     }
   };
-
+  
   const handleMouseUp = () => {
     setIsDragging(false);
     setDragStart(null);
     setDragMode(null);
   };
-
+  
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mouseup', handleMouseUp);
@@ -195,17 +161,17 @@ const RecurringMeetingScheduler = () => {
       if (!newTimes[slotKey]) {
         newTimes[slotKey] = [];
       }
-
+      
       if (newTimes[slotKey].includes(time)) {
         newTimes[slotKey] = newTimes[slotKey].filter(t => t !== time);
       } else {
         newTimes[slotKey] = [...newTimes[slotKey], time];
       }
-
+      
       return newTimes;
     });
   };
-
+  
   // Drag selection for times
   const handleTimeMouseDown = (slotKey, time) => {
     setIsTimeDragging(true);
@@ -214,25 +180,25 @@ const RecurringMeetingScheduler = () => {
     setTimeDragMode(isSelected ? 'deselect' : 'select');
     toggleTime(slotKey, time);
   };
-
+  
   const handleTimeMouseEnter = (slotKey, time) => {
     if (!isTimeDragging) return;
-
+    
     const isSelected = selectedTimes[slotKey]?.includes(time);
-
+    
     if (timeDragMode === 'select' && !isSelected) {
       toggleTime(slotKey, time);
     } else if (timeDragMode === 'deselect' && isSelected) {
       toggleTime(slotKey, time);
     }
   };
-
+  
   const handleTimeMouseUp = () => {
     setIsTimeDragging(false);
     setTimeDragStart(null);
     setTimeDragMode(null);
   };
-
+  
   useEffect(() => {
     if (isTimeDragging) {
       document.addEventListener('mouseup', handleTimeMouseUp);
@@ -246,7 +212,7 @@ const RecurringMeetingScheduler = () => {
       alert('Please enter your name and email');
       return;
     }
-
+    
     if (Object.keys(selectedSlots).length === 0) {
       alert('Please select at least one day/week combination');
       return;
@@ -263,7 +229,7 @@ const RecurringMeetingScheduler = () => {
       const currentParticipants = [...participants, participant];
       localStorage.setItem(`participants:${meetingId}`, JSON.stringify(currentParticipants));
       setParticipants(currentParticipants);
-
+      
       setView('results');
       setParticipantName('');
       setParticipantEmail('');
@@ -277,14 +243,14 @@ const RecurringMeetingScheduler = () => {
   // Calculate availability summary
   const getAvailabilitySummary = () => {
     const summary = {};
-
+    
     participants.forEach(participant => {
       Object.entries(participant.availability).forEach(([slotKey, times]) => {
         if (!summary[slotKey]) {
           summary[slotKey] = { count: 0, times: {} };
         }
         summary[slotKey].count++;
-
+        
         times.forEach(time => {
           if (!summary[slotKey].times[time]) {
             summary[slotKey].times[time] = [];
@@ -293,7 +259,7 @@ const RecurringMeetingScheduler = () => {
         });
       });
     });
-
+    
     return summary;
   };
 
@@ -316,8 +282,8 @@ const RecurringMeetingScheduler = () => {
 
   // Home View - Combined with meeting creation success
   if (view === 'home') {
-    const shareLink = meetingId ? `${window.location.origin}${window.location.pathname}?meeting=${meetingId}` : '';
-
+    const shareLink = meetingId ? `https://jsweet-aapc.github.io/recurring-scheduler/?meeting=${meetingId}` : '';
+    
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-2xl mx-auto px-6 py-16">
@@ -358,175 +324,15 @@ const RecurringMeetingScheduler = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  Time Zone *
-                </label>
-                <select
-                  value={meetingTimezone}
-                  onChange={(e) => setMeetingTimezone(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900 bg-white"
-                >
-                  {timezones.map(tz => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Clock className="w-4 h-4 inline mr-1" />
-                    Earliest Start Time *
-                  </label>
-                  <select
-                    value={earliestStartTime}
-                    onChange={(e) => setEarliestStartTime(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900 bg-white"
-                  >
-                    {timeOptions.map(time => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Clock className="w-4 h-4 inline mr-1" />
-                    Latest Start Time *
-                  </label>
-                  <select
-                    value={latestStartTime}
-                    onChange={(e) => setLatestStartTime(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors text-gray-900 bg-white"
-                  >
-                    {timeOptions.map(time => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold mb-3 text-gray-900">
-                  Step 1: Select Available Days & Weeks *
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Choose which day-week combinations guests can select from
-                </p>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold"></th>
-                        {daysOfWeek.map(day => (
-                          <th key={day} className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
-                            {day.substring(0, 3)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeksOfMonth.map(week => (
-                        <tr key={week}>
-                          <td className="border-2 border-gray-300 p-2 bg-gray-100 text-xs font-semibold text-gray-700">
-                            {week}
-                          </td>
-                          {daysOfWeek.map(day => {
-                            const isDaySelected = hostSelectedDays.includes(day);
-                            const isWeekSelected = hostSelectedWeeks.includes(week);
-                            const isAvailable = isDaySelected && isWeekSelected;
-
-                            return (
-                              <td key={`${week}-${day}`} className="border-2 border-gray-300 p-0">
-                                <div
-                                  className={`w-full h-12 flex items-center justify-center transition-all ${
-                                    isAvailable
-                                      ? 'bg-blue-500'
-                                      : 'bg-gray-200'
-                                  }`}
-                                >
-                                  {isAvailable && <Check className="w-5 h-5 text-white" />}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Available Days of Week
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {daysOfWeek.map(day => (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => {
-                            setHostSelectedDays(prev =>
-                              prev.includes(day)
-                                ? prev.filter(d => d !== day)
-                                : [...prev, day]
-                            );
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            hostSelectedDays.includes(day)
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {day.substring(0, 3)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Available Weeks of Month
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {weeksOfMonth.map(week => (
-                        <button
-                          key={week}
-                          type="button"
-                          onClick={() => {
-                            setHostSelectedWeeks(prev =>
-                              prev.includes(week)
-                                ? prev.filter(w => w !== week)
-                                : [...prev, week]
-                            );
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            hostSelectedWeeks.includes(week)
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {week}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <button
                 onClick={handleCreateMeeting}
-                disabled={!meetingTitle.trim() || meetingId || hostSelectedDays.length === 0 || hostSelectedWeeks.length === 0}
+                disabled={!meetingTitle.trim() || meetingId}
                 className="w-full bg-blue-600 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
               >
                 Create Meeting
               </button>
             </div>
-
+            
             {/* Show Meeting Created section after creation */}
             {meetingId && meetingData && (
               <div className="mt-8 pt-8 border-t-2 border-gray-200">
@@ -534,7 +340,7 @@ const RecurringMeetingScheduler = () => {
                   <Check className="w-5 h-5 text-green-600" />
                   <h2 className="text-xl font-bold text-gray-900">Meeting Created!</h2>
                 </div>
-
+                
                 <div className="mb-6">
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Shareable Link
@@ -561,7 +367,7 @@ const RecurringMeetingScheduler = () => {
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                   <p className="text-sm text-blue-900">
-                    <strong>Next steps:</strong> Share this link via email, Slack, or any messaging platform.
+                    <strong>Next steps:</strong> Share this link via email, Slack, or any messaging platform. 
                     Each participant will use it to submit their recurring monthly availability.
                   </p>
                 </div>
@@ -691,9 +497,9 @@ const RecurringMeetingScheduler = () => {
                 Step 1: Select Day & Week Combinations
               </h2>
               <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                Click and drag to select multiple slots at once
+                💡 Click and drag to select multiple slots at once
               </p>
-
+              
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -721,8 +527,8 @@ const RecurringMeetingScheduler = () => {
                                 onMouseDown={() => handleMouseDown(day, week)}
                                 onMouseEnter={() => handleMouseEnter(day, week)}
                                 className={`w-full h-12 transition-all cursor-pointer select-none ${
-                                  isSelected
-                                    ? 'bg-green-500 hover:bg-green-600'
+                                  isSelected 
+                                    ? 'bg-green-500 hover:bg-green-600' 
                                     : 'bg-white hover:bg-gray-100'
                                 }`}
                               >
@@ -744,7 +550,7 @@ const RecurringMeetingScheduler = () => {
                   Step 2: Select Available Times
                 </h2>
                 <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                  Click and drag to select multiple times at once - Times shown in {timezone}
+                  💡 Click and drag to select multiple times at once • Times shown in {timezone}
                 </p>
 
                 {Object.keys(selectedSlots).map(slotKey => {
@@ -888,14 +694,14 @@ const RecurringMeetingScheduler = () => {
                         const key = `${week}-${day}`;
                         const count = summary[key]?.count || 0;
                         const opacity = count / maxCount;
-
+                        
                         return (
                           <td key={key} className="border-2 border-gray-300 p-0">
                             <div
                               className="h-12 flex items-center justify-center transition-all cursor-pointer"
                               style={{
-                                backgroundColor: count > 0
-                                  ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})`
+                                backgroundColor: count > 0 
+                                  ? `rgba(34, 197, 94, ${0.2 + opacity * 0.8})` 
                                   : 'white'
                               }}
                               title={count > 0 ? `${count} available` : 'No availability'}
@@ -936,7 +742,7 @@ const RecurringMeetingScheduler = () => {
                 <h3 className="text-xl font-bold mb-4 text-gray-900">
                   Detailed Time Breakdown
                 </h3>
-
+                
                 {Object.entries(summary)
                   .sort(([, a], [, b]) => b.count - a.count)
                   .map(([slotKey, data]) => {
@@ -951,7 +757,7 @@ const RecurringMeetingScheduler = () => {
                             {data.count} {data.count === 1 ? 'person' : 'people'}
                           </span>
                         </div>
-
+                        
                         <div className="space-y-2">
                           {Object.entries(data.times)
                             .sort(([, a], [, b]) => b.length - a.length)
